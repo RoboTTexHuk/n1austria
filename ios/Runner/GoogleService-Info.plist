@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>API_KEY</key>
+	<string>AIzaSyB46vESLLkrXiNDiUCSfXMxIzTxVk_alBQ</string>
+	<key>GCM_SENDER_ID</key>
+	<string>618200806720</string>
+	<key>PLIST_VERSION</key>
+	<string>1</string>
+	<key>BUNDLE_ID</key>
+	<string>com.n1.austria</string>
+	<key>PROJECT_ID</key>
+	<string>n1-casino-austria</string>
+	<key>STORAGE_BUCKET</key>
+	<string>n1-casino-austria.firebasestorage.app</string>
+	<key>IS_ADS_ENABLED</key>
+	<false></false>
+	<key>IS_ANALYTICS_ENABLED</key>
+	<false></false>
+	<key>IS_APPINVITE_ENABLED</key>
+	<true></true>
+	<key>IS_GCM_ENABLED</key>
+	<true></true>
+	<key>IS_SIGNIN_ENABLED</key>
+	<true></true>
+	<key>GOOGLE_APP_ID</key>
+	<string>1:618200806720:ios:9cc8455ce93a44b4a436a5</string>
+</dict>
+</plist>
