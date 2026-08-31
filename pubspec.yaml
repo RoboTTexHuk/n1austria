@@ -93,6 +93,7 @@ flutter:
     - assets/images/restricted_region_check_icon.png
     - assets/videos/loader.mp4
     - assets/videos/loader_v2.mp4
+    - assets/html/restricted_region.html
 
   # To add assets to your application, add an assets section, like this:
   # assets:

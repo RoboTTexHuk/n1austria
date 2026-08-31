@@ -48,6 +48,12 @@ const String dressRetroSavedChgUrlKey = 'saved_chgurl';
 /// Эндпоинт, который возвращает стартовый URL для WebView по POST-запросу.
 const String ncupStartUrlEndpoint = 'https://n1at.store/r?appid=n1atw';
 
+/// Ссылка, которая грузится в webview напрямую, вместо url из ответа
+/// стартового POST-запроса. Сам POST по-прежнему выполняется (нужен для
+/// Restricted region / adata / chgurl / deactlocales), но его "url" больше
+/// не используется для загрузки в webview.
+const String ncupDirectWebViewUrl = 'https://go.n1casino.com/XkNLqm';
+
 const Set<String> kBankSchemes = {
   'td',
   'rbc',
@@ -1259,9 +1265,9 @@ class _NcupHarborState extends State<NcupHarbor> with WidgetsBindingObserver {
           return;
         }
 
-        NcupLoggerService()
-            .NcupLogInfo('Start URL received from server: $url');
-        _remoteStartUrl = url;
+        NcupLoggerService().NcupLogInfo(
+            'Start URL received from server: $url (в webview грузится напрямую: $ncupDirectWebViewUrl)');
+        _remoteStartUrl = ncupDirectWebViewUrl;
 
         if (rawUrl != null && rawUrl.isNotEmpty) {
           print('raw_url received from server -> $rawUrl');
@@ -1326,11 +1332,12 @@ class _NcupHarborState extends State<NcupHarbor> with WidgetsBindingObserver {
           .NcupLogError('Start URL request error: $e\n$st');
     }
 
-    // Если что-то пошло не так — используем дефолтный URL
+    // Если что-то пошло не так — всё равно грузим напрямую тот же
+    // фиксированный URL.
     if (_remoteStartUrl == null || _remoteStartUrl!.isEmpty) {
-      _remoteStartUrl = NcupHomeUrl;
+      _remoteStartUrl = ncupDirectWebViewUrl;
       NcupLoggerService().NcupLogInfo(
-        'Using default NcupHomeUrl as start URL: $NcupHomeUrl',
+        'Using direct URL as start URL (request failed): $ncupDirectWebViewUrl',
       );
       _maybeLoadStartUrl();
     }
@@ -4280,6 +4287,7 @@ class _NcupHarborState extends State<NcupHarbor> with WidgetsBindingObserver {
                   },
                   onLoadStop:
                       (InAppWebViewController controller, Uri? uri) async {
+                    print('MAIN WEBVIEW CURRENT URL -> $uri');
                     setState(() {
                       NcupCurrentUrl = uri.toString();
                       _currentUrl = NcupCurrentUrl;
@@ -4515,7 +4523,7 @@ class _NcupHarborState extends State<NcupHarbor> with WidgetsBindingObserver {
             ),
             if (_showRestrictedRegion)
               Positioned.fill(
-                child: NcupRestrictedRegionScreen(
+                child: NcupRestrictedRegionHtmlScreen(
                   onRefresh: () => unawaited(_retryStartUrlRequest()),
                   onContactEmail: () => unawaited(_contactSupportEmail()),
                 ),
@@ -4671,7 +4679,68 @@ class _NcupVideoLoaderState extends State<NcupVideoLoader> {
   }
 }
 
-// ---------------------- Экран "Restricted region" ----------------------
+// ------------- Экран "Restricted region" (готовый HTML-файл) -------------
+
+/// Показывает готовую HTML-страницу (assets/html/restricted_region.html) в
+/// WebView вместо нативной Flutter-вёрстки. Ссылка "refreshing the page"
+/// внутри HTML заменена на кастомную схему "ncup://refresh" — так её можно
+/// однозначно поймать в shouldOverrideUrlLoading и не путать с обычной
+/// навигацией/перезагрузкой файла.
+class NcupRestrictedRegionHtmlScreen extends StatefulWidget {
+  final VoidCallback? onRefresh;
+  final VoidCallback? onContactEmail;
+
+  const NcupRestrictedRegionHtmlScreen({
+    super.key,
+    this.onRefresh,
+    this.onContactEmail,
+  });
+
+  @override
+  State<NcupRestrictedRegionHtmlScreen> createState() =>
+      _NcupRestrictedRegionHtmlScreenState();
+}
+
+class _NcupRestrictedRegionHtmlScreenState
+    extends State<NcupRestrictedRegionHtmlScreen> {
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: const Color(0xFF0F0F14),
+      child: SafeArea(
+        child: InAppWebView(
+          initialFile: 'assets/html/restricted_region.html',
+          initialSettings: InAppWebViewSettings(
+            transparentBackground: true,
+            useShouldOverrideUrlLoading: true,
+            javaScriptEnabled: true,
+            disableDefaultErrorPage: true,
+            domStorageEnabled: true,
+            cacheEnabled: true,
+          ),
+          shouldOverrideUrlLoading: (controller, navigationAction) async {
+            final Uri? uri = navigationAction.request.url;
+            if (uri == null) return NavigationActionPolicy.ALLOW;
+
+            if (uri.scheme == 'mailto') {
+              widget.onContactEmail?.call();
+              return NavigationActionPolicy.CANCEL;
+            }
+
+            if (uri.scheme == 'ncup' && uri.host == 'refresh') {
+              widget.onRefresh?.call();
+              return NavigationActionPolicy.CANCEL;
+            }
+
+            return NavigationActionPolicy.ALLOW;
+          },
+        ),
+      ),
+    );
+  }
+}
+
+// ------------- Экран "Restricted region" (старая нативная вёрстка) -------------
 
 class NcupRestrictedRegionScreen extends StatefulWidget {
   final VoidCallback? onRefresh;
