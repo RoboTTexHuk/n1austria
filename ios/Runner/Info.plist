@@ -14,6 +14,16 @@
 	<string>$(PRODUCT_BUNDLE_IDENTIFIER)</string>
 	<key>CFBundleInfoDictionaryVersion</key>
 	<string>6.0</string>
+	<key>CFBundleLocalizations</key>
+	<array>
+		<string>fi</string>
+		<string>de</string>
+		<string>en</string>
+		<string>en-CA</string>
+		<string>en-NZ</string>
+		<string>fr</string>
+		<string>de-AT</string>
+	</array>
 	<key>CFBundleName</key>
 	<string>greyapptes</string>
 	<key>CFBundlePackageType</key>

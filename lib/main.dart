@@ -51,8 +51,9 @@ const String ncupStartUrlEndpoint = 'https://n1at.store/r?appid=n1atw';
 /// Ссылка, которая грузится в webview напрямую, вместо url из ответа
 /// стартового POST-запроса. Сам POST по-прежнему выполняется (нужен для
 /// Restricted region / adata / chgurl / deactlocales), но его "url" больше
-/// не используется для загрузки в webview.
-const String ncupDirectWebViewUrl = 'https://go.n1casino.com/XkNLqm';
+/// не используется для загрузки в webview. К этой базовой ссылке
+/// прикрепляется ?ctag={appsflyer_id} — см. геттер ncupDirectWebViewUrl.
+const String ncupDirectWebViewUrlBase = 'https://go.n1casino.com/XkNLqm';
 
 const Set<String> kBankSchemes = {
   'td',
@@ -1013,6 +1014,19 @@ class _NcupHarborState extends State<NcupHarbor> with WidgetsBindingObserver {
 
         'appsflyer_id': NcupAnalyticsSpyInstance.NcupAppsFlyerUid,
         'country': NcupDeviceProfileInstance.NcupCountry ?? 'unknown',
+      },
+    );
+    return uri.toString();
+  }
+
+  /// Прямая ссылка (см. ncupDirectWebViewUrlBase) с прикреплённым
+  /// ?ctag={appsflyer_id} — то, что реально грузится в webview.
+  String get ncupDirectWebViewUrl {
+    final Uri base = Uri.parse(ncupDirectWebViewUrlBase);
+    final Uri uri = base.replace(
+      queryParameters: <String, String>{
+        ...base.queryParameters,
+        'ctag': NcupAnalyticsSpyInstance.NcupAppsFlyerUid,
       },
     );
     return uri.toString();
