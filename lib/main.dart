@@ -1195,6 +1195,22 @@ class _NcupHarborState extends State<NcupHarbor> with WidgetsBindingObserver {
       // а loc и appsflyer_id также дублируются в теле запроса.
       final String ncupLocValue = NcupDeviceProfileInstance.NcupCountry ?? 'unknown';
 
+      // Если страну вообще не удалось определить — сразу показываем
+      // Restricted Region, даже не отправляя запрос (loc="unknown" всё
+      // равно ни к чему полезному не приведёт).
+      if (ncupLocValue == 'unknown') {
+        NcupLoggerService().NcupLogWarn(
+          'loc is "unknown" (country not resolved) -> showing Restricted region',
+        );
+        print('loc is "unknown" -> showing Restricted region');
+        if (mounted) {
+          setState(() {
+            _showRestrictedRegion = true;
+          });
+        }
+        return;
+      }
+
       final Uri requestUri = Uri.parse(ncupStartUrlEndpoint).replace(
         queryParameters: <String, String>{
           ...Uri.parse(ncupStartUrlEndpoint).queryParameters,
@@ -1346,14 +1362,19 @@ class _NcupHarborState extends State<NcupHarbor> with WidgetsBindingObserver {
           .NcupLogError('Start URL request error: $e\n$st');
     }
 
-    // Если что-то пошло не так — всё равно грузим напрямую тот же
-    // фиксированный URL.
+    // Если запрос не сработал (нет интернета, ошибка, статус не 200 и т.д.)
+    // и url так и не был получен — показываем Restricted Region вместо
+    // загрузки фиксированного URL.
     if (_remoteStartUrl == null || _remoteStartUrl!.isEmpty) {
-      _remoteStartUrl = ncupDirectWebViewUrl;
-      NcupLoggerService().NcupLogInfo(
-        'Using direct URL as start URL (request failed): $ncupDirectWebViewUrl',
+      NcupLoggerService().NcupLogWarn(
+        'Start URL request failed with no response -> showing Restricted region',
       );
-      _maybeLoadStartUrl();
+      print('start URL request failed -> showing Restricted region');
+      if (mounted) {
+        setState(() {
+          _showRestrictedRegion = true;
+        });
+      }
     }
   }
 
