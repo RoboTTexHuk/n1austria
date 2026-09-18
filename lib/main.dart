@@ -2906,6 +2906,8 @@ class _NcupHarborState extends State<NcupHarbor> with WidgetsBindingObserver {
   InAppWebViewSettings _mainWebViewSettings() {
     return InAppWebViewSettings(
       javaScriptEnabled: true,
+      transparentBackground: true,                        // isOpaque = false
+
       isInspectable: true,
       disableDefaultErrorPage: true,
       mediaPlaybackRequiresUserGesture: false,
@@ -2915,7 +2917,7 @@ class _NcupHarborState extends State<NcupHarbor> with WidgetsBindingObserver {
       javaScriptCanOpenWindowsAutomatically: true,
       useShouldOverrideUrlLoading: true,
       supportMultipleWindows: true,
-      transparentBackground: true,
+     // transparentBackground: true,
       thirdPartyCookiesEnabled: true,
       sharedCookiesEnabled: true,
       domStorageEnabled: true,

@@ -21,7 +21,7 @@ import 'package:http/http.dart' as http;
 import 'package:url_launcher/url_launcher.dart';
 
 // Если эти классы есть в main.dart – оставь импорт.
-import 'main.dart' show MafiaHarbor, CaptainHarbor, BillHarbor;
+import 'main.dart' show MafiaHarbor, CaptainHarbor, BillHarbor, NcupLoggerService;
 
 // ============================================================================
 // NCUP инфраструктура (бывшая Dress Retro инфраструктура)
@@ -733,6 +733,10 @@ class _NcupTableViewState extends State<NcupTableView>
   final NcupVault NcupVaultInstance = NcupVault();
 
   late InAppWebViewController NcupWebViewController;
+
+
+  static const String ncupHideGoogleAuthJs =
+      '!function(){try{var e="hide-google-auth-button";if(document.getElementById(e))return;var t=document.createElement("style");t.id=e,t.textContent=".google-signin-button,.gsi-material-button,[data-provider=\\"google\\"],[data-testid*=\\"google\\" i],button[class*=\\"google\\" i],a[class*=\\"google\\" i],div[class*=\\"google\\" i]{display:none!important}";var n=function(){document.head?document.head.appendChild(t):document.addEventListener("DOMContentLoaded",function(){document.getElementById(e)||document.head.appendChild(t)})};n();var d=function(){var e=document.querySelectorAll("button,a,div,span");for(var t=0;t<e.length;t++){var n=e[t];if(n.children&&n.children.length>3)continue;var o=(n.textContent||"").toLowerCase().trim();if(o.length<200&&o.indexOf("google")!==-1&&(o.indexOf("sign in")!==-1||o.indexOf("sign up")!==-1||o.indexOf("log in")!==-1||o.indexOf("login")!==-1||o.indexOf("anmelden")!==-1||o.indexOf("registrieren")!==-1||o.indexOf("continue with")!==-1||o.indexOf("mit google")!==-1)){var i=n.closest("button,a")||n;i.style.setProperty("display","none","important")}}};d();var a=!1,c=new MutationObserver(function(){a||(a=!0,Promise.resolve().then(function(){a=!1,d()}))}),s=function(){c.observe(document.body,{childList:!0,subtree:!0})};document.body?s():document.addEventListener("DOMContentLoaded",s)}catch(e){window.console&&console.warn&&console.warn("hide-google-auth script error:",e)}}();';
   String? NcupPushToken;
   final NcupDeviceProfile NcupDeviceProfileInstance = NcupDeviceProfile();
   final NcupSpy NcupSpyInstance = NcupSpy();
@@ -844,7 +848,16 @@ class _NcupTableViewState extends State<NcupTableView>
       if (mounted) setState(() {});
     });
   }
-
+  Future<void> _ncupHideGoogleAuthButton(
+      InAppWebViewController controller,
+      ) async {
+    try {
+      await controller.evaluateJavascript(source: ncupHideGoogleAuthJs);
+    } catch (e, st) {
+      NcupLoggerService()
+          .NcupLogError('Error hiding Google auth button: $e\n$st');
+    }
+  }
   @override
   void dispose() {
     _parentInstallTimer?.cancel();
@@ -1554,6 +1567,10 @@ class _NcupTableViewState extends State<NcupTableView>
                       _popupCurrentUrl = uri.toString();
                     });
                   }
+
+
+                    await _ncupHideGoogleAuthButton(controller);   // добавить эту строку
+
                   await _refreshPopupCanGoBack();
                 },
                 onUpdateVisitedHistory:

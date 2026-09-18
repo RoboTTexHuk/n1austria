@@ -37,7 +37,7 @@
 	<key>LSRequiresIPhoneOS</key>
 	<true/>
 	<key>NSCameraUsageDescription</key>
-	<string>This app requires access to the camera to take photos and videos.</string>
+	<string>Diese App benötigt Zugriff auf die Kamera, um im Rahmen der Kontoverifizierung (KYC) Fotos oder Scans amtlicher Ausweisdokumente (Personalausweis oder Reisepass) sowie eines Wohnsitznachweises aufzunehmen. Es werden keine Aufnahmen Ihres Gesichts oder biometrische Daten erfasst.</string>
 	<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
 	<string>Diese App benötigt Zugriff auf Ihren Standort, um Ihr Land zu bestimmen.</string>
 	<key>NSLocationWhenInUseUsageDescription</key>
