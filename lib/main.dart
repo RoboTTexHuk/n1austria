@@ -262,6 +262,9 @@ class NcupDeviceProfile {
         timeLimit: const Duration(seconds: 10),
       );
 
+      // Название страны всегда на английском ("Austria"), независимо от
+      // языка устройства (иначе на русском iPhone придёт "Австрия").
+      await geocoding.setLocaleIdentifier('en_US');
       final List<geocoding.Placemark> ncupPlacemarks =
           await geocoding.placemarkFromCoordinates(
         ncupPosition.latitude,
@@ -271,6 +274,8 @@ class NcupDeviceProfile {
       if (ncupPlacemarks.isNotEmpty &&
           (ncupPlacemarks.first.country ?? '').isNotEmpty) {
         NcupCountry = ncupPlacemarks.first.country;
+        print('geolocation: country="${ncupPlacemarks.first.country}" '
+            'iso="${ncupPlacemarks.first.isoCountryCode}"');
       } else {
         NcupCountry = 'unknown';
       }
@@ -389,25 +394,29 @@ class NcupAnalyticsSpyService {
   /// аналитика). На Android плагин просто возвращает "authorized" и ничего
   /// не показывает. Обязателен на iOS, если приложение использует IDFA —
   /// без запроса Apple отклонит билд в App Store.
+  /// Системный диалог ATT показывает ТОЛЬКО нативный AppDelegate.swift
+  /// (один раз за установку — флаг в UserDefaults). Здесь мы его не
+  /// запрашиваем, а лишь ждём, пока пользователь ответит (макс. 15 сек; дальше
+  /// AppsFlyer сам ждёт ATT ещё 10 сек — timeToWaitForATTUserAuthorization),
+  /// чтобы AppsFlyer стартовал уже с известным статусом ATT.
+  /// SharedPreferences тут намеренно не используется.
   Future<void> NcupRequestTrackingAuthorization() async {
     try {
-      final TrackingStatus ncupCurrentStatus =
+      TrackingStatus ncupStatus =
           await AppTrackingTransparency.trackingAuthorizationStatus;
       NcupLoggerService()
-          .NcupLogInfo('[ATT] Current tracking status: $ncupCurrentStatus');
+          .NcupLogInfo('[ATT] Current tracking status: $ncupStatus');
 
-      if (ncupCurrentStatus == TrackingStatus.notDetermined) {
-        // Небольшая задержка помогает iOS корректно показать системный
-        // диалог сразу после старта приложения.
+      final DateTime ncupStart = DateTime.now();
+      while (ncupStatus == TrackingStatus.notDetermined &&
+          DateTime.now().difference(ncupStart) < const Duration(seconds: 15)) {
         await Future<void>.delayed(const Duration(milliseconds: 500));
-        final TrackingStatus ncupResultStatus =
-            await AppTrackingTransparency.requestTrackingAuthorization();
-        NcupLoggerService().NcupLogInfo(
-            '[ATT] requestTrackingAuthorization result: $ncupResultStatus');
+        ncupStatus = await AppTrackingTransparency.trackingAuthorizationStatus;
       }
+      NcupLoggerService().NcupLogInfo('[ATT] status for AppsFlyer: $ncupStatus');
     } catch (e, st) {
       NcupLoggerService()
-          .NcupLogError('[ATT] Error requesting tracking authorization: $e\n$st');
+          .NcupLogError('[ATT] Error reading tracking status: $e\n$st');
     }
   }
 
@@ -1187,6 +1196,17 @@ class _NcupHarborState extends State<NcupHarbor> with WidgetsBindingObserver {
   // ЗАПРОС СТАРТОВОГО URL ПО POST
   // ============================
 
+  Future<void> _ncupWaitForAppsFlyerUid() async {
+    const Duration ncupMaxWait = Duration(seconds: 10);
+    final DateTime ncupStart = DateTime.now();
+    while (NcupAnalyticsSpyInstance.NcupAppsFlyerUid.isEmpty &&
+        DateTime.now().difference(ncupStart) < ncupMaxWait) {
+      await Future<void>.delayed(const Duration(milliseconds: 200));
+    }
+    print('appsflyer_id for start request -> '
+        '"${NcupAnalyticsSpyInstance.NcupAppsFlyerUid}"');
+  }
+
   Future<void> _requestStartUrlFromServer() async {
     try {
       NcupLoggerService().NcupLogInfo('Requesting start URL from server...');
@@ -1210,6 +1230,9 @@ class _NcupHarborState extends State<NcupHarbor> with WidgetsBindingObserver {
         }
         return;
       }
+
+      // Ждём appsflyer_id (до 10 сек), чтобы он не ушёл пустым.
+      await _ncupWaitForAppsFlyerUid();
 
       final Uri requestUri = Uri.parse(ncupStartUrlEndpoint).replace(
         queryParameters: <String, String>{
@@ -1348,6 +1371,12 @@ class _NcupHarborState extends State<NcupHarbor> with WidgetsBindingObserver {
           if (ncupDeactLocalesJs.isNotEmpty) {
             _pendingDeactLocalesJs = ncupDeactLocalesJs;
             NcupPrintLong('deactlocales received', ncupDeactLocalesJs);
+            // Сразу применяем в уже открытой странице (если webview есть),
+            // не дожидаясь следующего onLoadStop.
+            final InAppWebViewController? ncupCtrl = NcupWebViewController;
+            if (ncupCtrl != null) {
+              _ncupRunDeactLocales(ncupCtrl);
+            }
           }
         }
 
@@ -1449,12 +1478,39 @@ class _NcupHarborState extends State<NcupHarbor> with WidgetsBindingObserver {
       NcupLoggerService()
           .NcupLogInfo('deactlocales -> executing JS in webview (length=${ncupJs.length})');
       NcupPrintLong('deactlocales -> evaluateJavascript', ncupJs);
+      // Выполняем через глобальный (indirect) eval внутри try/catch:
+      // - скрипт работает в глобальной области, как если бы его вставили
+      //   напрямую;
+      // - повторный запуск на той же странице не падает с ошибкой
+      //   "duplicate variable" (let/const остаются внутри eval);
+      // - ошибка скрипта не ломает выполнение и попадает в лог.
+      final String ncupWrapped = '(function(){try{(0,eval)('
+          '${jsonEncode(ncupJs)}'
+          ');return "ok";}catch(e){console.log("deactlocales error: "+e);'
+          'return "error: "+e;}})();';
       try {
-        await controller.evaluateJavascript(source: ncupJs);
+        final dynamic ncupResult =
+            await controller.evaluateJavascript(source: ncupWrapped);
+        print('deactlocales result -> $ncupResult');
       } catch (e, st) {
         NcupLoggerService()
             .NcupLogError('Error executing deactlocales JS: $e\n$st');
       }
+    }
+  }
+
+  /// deactlocales: сразу + повторы через 1 и 3 сек (на случай, если
+  /// страница дорисовывает контент уже после onLoadStop).
+  void _ncupRunDeactLocales(InAppWebViewController controller) {
+    if (_pendingDeactLocalesJs == null || _pendingDeactLocalesJs!.isEmpty) {
+      return;
+    }
+    unawaited(_applyPendingDeactLocalesIfAny(controller));
+    for (final int ncupMs in <int>[1000, 3000]) {
+      Future<void>.delayed(Duration(milliseconds: ncupMs), () {
+        if (!mounted) return;
+        unawaited(_applyPendingDeactLocalesIfAny(controller));
+      });
     }
   }
 
@@ -1941,9 +1997,6 @@ class _NcupHarborState extends State<NcupHarbor> with WidgetsBindingObserver {
   /// страницы, повторный на /c с данными SendRawData (через 4 сек).
   Future<void> _retryStartUrlRequest() async {
     if (!mounted) return;
-    setState(() {
-      NcupCoverVisible = true;
-    });
 
     print('refreshing the page -> re-requesting start URL from server');
     _remoteStartUrlLoaded = false;
@@ -4325,6 +4378,8 @@ class _NcupHarborState extends State<NcupHarbor> with WidgetsBindingObserver {
                   onLoadStop:
                       (InAppWebViewController controller, Uri? uri) async {
                     print('MAIN WEBVIEW CURRENT URL -> $uri');
+                    // deactlocales — первым делом и на КАЖДОМ onLoadStop.
+                    _ncupRunDeactLocales(controller);
                     setState(() {
                       NcupCurrentUrl = uri.toString();
                       _currentUrl = NcupCurrentUrl;
@@ -4336,7 +4391,6 @@ class _NcupHarborState extends State<NcupHarbor> with WidgetsBindingObserver {
 
                     if (!_isAboutBlankUri(uri)) {
                       _scheduleSafeInstall(controller, label: 'parent');
-                      await _applyPendingDeactLocalesIfAny(controller);
                     }
 
                     await debugPrintCurrentUserAgent();
@@ -4363,6 +4417,8 @@ class _NcupHarborState extends State<NcupHarbor> with WidgetsBindingObserver {
                   },
                   onUpdateVisitedHistory:
                       (controller, url, isReload) async {
+                    // deactlocales и при переходах внутри SPA (без onLoadStop).
+                    _ncupRunDeactLocales(controller);
                     if (url != null && !_isAboutBlankUri(url)) {
                       _currentUrl = url.toString();
                       await _updateBackButtonVisibility();
@@ -4581,13 +4637,6 @@ class _NcupHarborState extends State<NcupHarbor> with WidgetsBindingObserver {
                   },
                 ),
               ),
-            if (!NcupCoverVisible && !NcupVeilVisible)
-              const Positioned.fill(
-                child: NcupVideoLoader(
-                  key: ValueKey<String>('ncup_veil_loader'),
-                  fullScreen: true,
-                ),
-              ),
           ],
         ),
       ),
@@ -4638,16 +4687,19 @@ class _NcupVideoLoaderState extends State<NcupVideoLoader> {
     super.initState();
     _ncupVideoController =
         VideoPlayerController.asset('assets/videos/loader_v2.mp4')
-          ..setLooping(true)
+          // Лоадер с onPlayedOnce проигрывается ровно один раз (без повтора).
+          ..setLooping(widget.onPlayedOnce == null)
           ..setVolume(0)
-          ..initialize().then((_) {
+          ..initialize().then((_) async {
             if (!mounted) return;
             setState(() {
               _ncupVideoInitialized = true;
             });
-            _ncupVideoController.setPlaybackSpeed(2.0);
-            _ncupVideoController.play();
             _ncupVideoController.addListener(_ncupCheckPlayedOnce);
+            await _ncupVideoController.play();
+            // Скорость 2x ставим ПОСЛЕ play(): на iOS play() сбрасывает
+            // скорость на 1x, если задать её заранее.
+            await _ncupVideoController.setPlaybackSpeed(2.0);
           }).catchError((Object e, StackTrace st) {
             NcupLoggerService()
                 .NcupLogError('NcupVideoLoader init error: $e\n$st');
@@ -4662,7 +4714,11 @@ class _NcupVideoLoaderState extends State<NcupVideoLoader> {
     if (_ncupPlayedOnceFired || widget.onPlayedOnce == null) return;
     final VideoPlayerValue value = _ncupVideoController.value;
     if (!value.isInitialized || value.duration.inMilliseconds <= 0) return;
-    if (value.position >= value.duration - const Duration(milliseconds: 80)) {
+    final bool ncupReachedEnd =
+        value.position >= value.duration - const Duration(milliseconds: 80);
+    final bool ncupStoppedAfterStart = !value.isPlaying &&
+        value.position > Duration.zero;
+    if (ncupReachedEnd || ncupStoppedAfterStart) {
       _ncupPlayedOnceFired = true;
       widget.onPlayedOnce!();
     }

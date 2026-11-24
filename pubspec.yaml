@@ -62,6 +62,12 @@ dependencies:
   video_player: ^2.9.2
 
 
+# shared_preferences_foundation 2.6.x (через objective_c/FFI) падает с
+# "Failed assertion ... _isValid(_finalizable.ptr)" в getAll.
+# Фиксируем версию из рабочей v1.0.5.
+dependency_overrides:
+  shared_preferences_foundation: 2.5.6
+
 dev_dependencies:
   flutter_test:
     sdk: flutter
@@ -78,6 +84,10 @@ dev_dependencies:
 
 # The following section is specific to Flutter packages.
 flutter:
+  # Используем CocoaPods (как в рабочей v1.0.5): со SwiftPM AppsFlyerLib
+  # не подключается к Runner -> "No such module AppsFlyerLib".
+  config:
+    enable-swift-package-manager: false
 
   # The following line ensures that the Material Icons font is
   # included with your application, so that you can use the icons in

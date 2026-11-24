@@ -16,12 +16,8 @@
 	<string>6.0</string>
 	<key>CFBundleLocalizations</key>
 	<array>
-		<string>fi</string>
-		<string>de</string>
 		<string>en</string>
-		<string>en-CA</string>
-		<string>en-NZ</string>
-		<string>fr</string>
+		<string>de</string>
 		<string>de-AT</string>
 	</array>
 	<key>CFBundleName</key>
@@ -44,6 +40,27 @@
 	<string>Diese App benötigt Zugriff auf Ihren Standort, um Ihr Land zu bestimmen.</string>
 	<key>NSUserTrackingUsageDescription</key>
 	<string>This identifier will be used to deliver personalized ads to you and to measure the effectiveness of advertising campaigns.</string>
+	<key>UIApplicationSceneManifest</key>
+	<dict>
+		<key>UIApplicationSupportsMultipleScenes</key>
+		<false/>
+		<key>UISceneConfigurations</key>
+		<dict>
+			<key>UIWindowSceneSessionRoleApplication</key>
+			<array>
+				<dict>
+					<key>UISceneClassName</key>
+					<string>UIWindowScene</string>
+					<key>UISceneDelegateClassName</key>
+					<string>FlutterSceneDelegate</string>
+					<key>UISceneConfigurationName</key>
+					<string>flutter</string>
+					<key>UISceneStoryboardFile</key>
+					<string>Main</string>
+				</dict>
+			</array>
+		</dict>
+	</dict>
 	<key>UIApplicationSupportsIndirectInputEvents</key>
 	<true/>
 	<key>UIBackgroundModes</key>
